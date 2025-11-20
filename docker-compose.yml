@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d app"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
