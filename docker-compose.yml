@@ -2,11 +2,11 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: app
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d app"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-app}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -16,6 +16,8 @@ services:
       context: ./backend
     ports:
       - "5000:5000"
+    env_file:
+      - ./backend/.env
     depends_on:
       db:
         condition: service_healthy

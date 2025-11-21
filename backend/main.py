@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session as DBSession
@@ -13,11 +13,13 @@ import qrcode
 from io import BytesIO
 import base64
 import time
+import os
 
-# JWT Configuration
-SECRET_KEY = "your-secret-key-change-this-in-production-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Load environment variables
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-only-for-dev")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:pass@db:5432/app")
 
 app = FastAPI()
 
@@ -33,7 +35,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 Base = declarative_base()
 
-# Pydantic Models
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -49,7 +50,7 @@ class UserResponse(BaseModel):
 def get_engine():
     for i in range(5):
         try:
-            engine = create_engine("postgresql://user:pass@db:5432/app")
+            engine = create_engine(DATABASE_URL)
             conn = engine.connect()
             conn.close()
             print("✓ Database connected")
@@ -72,7 +73,6 @@ class User(Base):
 
 Base.metadata.create_all(engine)
 
-# Database dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -80,7 +80,6 @@ def get_db():
     finally:
         db.close()
 
-# Helper functions
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
@@ -161,7 +160,6 @@ def login(username: str, password: str, db: DBSession = Depends(get_db)):
     if not verify_password(password, user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Create JWT token
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
@@ -215,7 +213,6 @@ def verify_2fa(user_id: int, code: str, db: DBSession = Depends(get_db)):
         user.enabled = True
         db.commit()
         
-        # Return JWT token after 2FA verification
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": user.username}, expires_delta=access_token_expires
