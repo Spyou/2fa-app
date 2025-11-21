@@ -6,9 +6,11 @@
     <p class="secret" v-if="secret">Secret: <code>{{ secret }}</code></p>
     <form @submit.prevent="verify">
       <input v-model="token" placeholder="Enter 6-digit code" maxlength="6" required />
-      <button type="submit">Enable 2FA</button>
+      <button type="submit" :disabled="loading">
+        {{ loading ? 'Verifying...' : 'Enable 2FA' }}
+      </button>
     </form>
-    <button @click="$router.push('/')" class="skip">Skip</button>
+    <button @click="skip" class="skip" :disabled="loading">Skip</button>
   </div>
 </template>
 
@@ -16,11 +18,15 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useDialog } from '../composables/useDialog'
 
 const router = useRouter()
+const { showSuccess, showError } = useDialog()
+
 const qrCode = ref(null)
 const secret = ref('')
 const token = ref('')
+const loading = ref(false)
 
 onMounted(async () => {
   const userId = localStorage.getItem('userId')
@@ -34,22 +40,33 @@ onMounted(async () => {
     secret.value = res.data.secret
   } catch (err) {
     const msg = err.response?.data?.detail || err.message || 'Failed to generate QR'
-    alert('Error: ' + msg)
+    await showError(msg)
   }
 })
 
 const verify = async () => {
+  loading.value = true
   try {
     const userId = localStorage.getItem('userId')
-    await axios.post('http://localhost:5000/2fa/verify', null, {
+    const res = await axios.post('http://localhost:5000/2fa/verify', null, {
       params: { user_id: userId, code: token.value }
     })
-    alert('✓ 2FA enabled successfully!')
-    router.push('/')
+    
+    // Store JWT token
+    localStorage.setItem('token', res.data.access_token)
+    
+    await showSuccess('2FA enabled successfully!')
+    router.push('/dashboard')
   } catch (err) {
     const msg = err.response?.data?.detail || err.message || 'Invalid code'
-    alert('Error: ' + msg)
+    await showError(msg)
+  } finally {
+    loading.value = false
   }
+}
+
+const skip = () => {
+  router.push('/')
 }
 </script>
 
@@ -95,7 +112,13 @@ button {
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 10px;
+  transition: transform 0.2s;
 }
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+button:not(:disabled):hover { transform: translateY(-2px); }
 .skip {
   background: transparent;
   color: #666;

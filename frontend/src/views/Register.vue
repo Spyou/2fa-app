@@ -4,7 +4,9 @@
     <form @submit.prevent="register">
       <input v-model="username" placeholder="Username" required />
       <input v-model="password" type="password" placeholder="Password" maxlength="50" required />
-      <button type="submit">Register</button>
+      <button type="submit" :disabled="loading">
+        {{ loading ? 'Creating...' : 'Register' }}
+      </button>
     </form>
     <p>Have an account? <router-link to="/">Login</router-link></p>
   </div>
@@ -14,24 +16,30 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useDialog } from '../composables/useDialog'
 
 const router = useRouter()
+const { showSuccess, showError } = useDialog()
+
 const username = ref('')
 const password = ref('')
+const loading = ref(false)
 
 const register = async () => {
+  loading.value = true
   try {
     const res = await axios.post('http://localhost:5000/register', null, {
       params: { username: username.value, password: password.value }
     })
     localStorage.setItem('userId', res.data.id)
     localStorage.setItem('username', username.value)
-    alert('✓ Account created!')
+    await showSuccess('Account created successfully!')
     router.push('/setup-2fa')
   } catch (err) {
-    // Fixed error display
     const msg = err.response?.data?.detail || err.message || 'Registration failed'
-    alert('Error: ' + msg)
+    await showError(msg)
+  } finally {
+    loading.value = false
   }
 }
 </script>
@@ -69,8 +77,13 @@ button {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  transition: transform 0.2s;
 }
-button:hover { transform: translateY(-2px); }
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+button:not(:disabled):hover { transform: translateY(-2px); }
 p { margin-top: 20px; color: #666; }
 a { color: #667eea; text-decoration: none; font-weight: 600; }
 </style>
